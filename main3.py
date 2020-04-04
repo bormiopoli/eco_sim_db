@@ -36,6 +36,8 @@ NAME_OF_PRODUCTS = ["bread", "eggs", "cavial"]
 
 
 def simulation(i):
+
+
     # USER CHOOSE NEEDS OF PRODUCTS WITH RANDOM PARETIAN AMOUNT AND WEIGHT
     for user in get_user(conn):
         user_balance = user[3]
