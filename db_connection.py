@@ -58,23 +58,49 @@ def create_products_table(conn):
     sql = "DROP TABLE IF EXISTS products;"
     cur = conn.cursor()
     cur.execute(sql)
-    sql = """CREATE TABLE IF NOT EXISTS products (id integer PRIMARY KEY AUTOINCREMENT, start_date date, end_date date, product_name text, amount REAL, energy REAL, impact REAL, producer INTEGER)"""
+    sql = """CREATE TABLE IF NOT EXISTS products (id integer PRIMARY KEY AUTOINCREMENT, start_date date, end_date date,
+        product_name text, amount REAL, producer INTEGER, produced BOOLEAN)"""
     cur.executescript(sql)
 
 def create_produceable_product(conn):
     sql = "DROP TABLE IF EXISTS produceable_products;"
     cur = conn.cursor()
     cur.execute(sql)
-    sql = """CREATE TABLE IF NOT EXISTS produceable_products (product_name TEXT, energy REAL, impact REAL);"""
+    sql = """CREATE TABLE IF NOT EXISTS produceable_products (id integer PRIMARY KEY AUTOINCREMENT, product_name TEXT, energy REAL, impact REAL, dependency INTEGER, reservoir BOOLEAN);"""
     res = cur.execute(sql)
-    sql = """INSERT INTO produceable_products (product_name, energy, impact) VALUES ('bread', 0.01, 0.001);"""
+
+    sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('bread', 0.01, 0.001, 4, 0);"""
     cur.execute(sql)
-    sql = """INSERT INTO produceable_products (product_name, energy, impact) VALUES ('eggs', 0.1, 0.01);"""
+    sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('eggs', 0.01, 0.001, 4, 0);"""
     cur.execute(sql)
-    sql = """INSERT INTO produceable_products (product_name, energy, impact) VALUES ('cavial', 1, 0.1);"""
+    sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('cavial', 0.1, 0.001, 6, 0);"""
     cur.execute(sql)
-    res = res.fetchall()
-    return res
+    sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('wheat', 0.1, 0.001, 1, 1);"""
+    cur.execute(sql)
+    sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('spoon', 0.1, 0.001, 7, 0);"""
+    cur.execute(sql)
+    sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('fish_food', 0.1, 0.001, 2, 1);"""
+    cur.execute(sql)
+    sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('iron', 0.1, 0.001, 3, 1);"""
+    cur.execute(sql)
+
+    # sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('bread', 0.01, 0.001, 4, 0);"""
+    # cur.execute(sql)
+    # sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('eggs', 0.01, 0.001, 4, 0);"""
+    # cur.execute(sql)
+    # sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('cavial', 1, 0.1, 6, 0);"""
+    # cur.execute(sql)
+    # sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('wheat', 0.01, 0.001, 1, 1);"""
+    # cur.execute(sql)
+    # sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('spoon', 10, 1, 7, 0);"""
+    # cur.execute(sql)
+    # sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('fish_food', 1, 0.1, 2, 1);"""
+    # cur.execute(sql)
+    # sql = """INSERT INTO produceable_products (product_name, energy, impact, dependency, reservoir) VALUES ('iron', 10, 1, 3, 1);"""
+    # cur.execute(sql)
+
+    return res.fetchall()
+
 
 def create_bank_table(conn):
     sql = "DROP TABLE IF EXISTS bank;"
@@ -89,6 +115,26 @@ def create_loan_table(conn):
     cur = conn.cursor()
     cur.execute(sql)
     sql = "CREATE TABLE IF NOT EXISTS loans (id integer PRIMARY KEY AUTOINCREMENT, user integer, bank integer, amount REAL, energy REAL, impact REAL)"
+    cur.executescript(sql)
+    return cur.lastrowid
+
+def create_reservoir_table(conn):
+    sql = "DROP TABLE IF EXISTS reservoirs;"
+    cur = conn.cursor()
+    cur.execute(sql)
+    sql = "CREATE TABLE IF NOT EXISTS reservoirs (id integer PRIMARY KEY AUTOINCREMENT, amount REAL, energy REAL, impact REAL)"
+    cur.executescript(sql)
+    sql = "INSERT INTO reservoirs (amount, energy, impact) VALUES (1000, 1, 0.1)"
+    cur.executescript(sql)
+    sql = "INSERT INTO reservoirs (amount, energy, impact) VALUES (2000, 1, 0.1)"
+    cur.executescript(sql)
+    sql = "INSERT INTO reservoirs (amount, energy, impact) VALUES (3000, 1, 0.1)"
+    cur.executescript(sql)
+    return cur.lastrowid
+
+def deplete_reservoir(conn, amount, reservoir_id):
+    cur = conn.cursor()
+    sql = "UPDATE reservoirs SET amount = amount - {0} WHERE id = {1} ;".format(amount, reservoir_id)
     cur.executescript(sql)
     return cur.lastrowid
 
@@ -107,18 +153,6 @@ def change_need(conn, user, product, product_name, amount, weight, action):
     cur = conn.cursor()
     cur.executescript(sql)
     return cur.lastrowid
-
-def get_user(conn):
-    cur = conn.cursor()
-    res = cur.execute("SELECT id, start_date, end_date, balance, wealth, bank FROM users")
-    res = res.fetchall()
-    return res
-
-def get_user_balance(conn, user):
-    cur = conn.cursor()
-    res = cur.execute("SELECT balance FROM users WHERE id = {0}".format(user))
-    res = res.fetchall()
-    return res[0]
 
 def update_user_balance(conn, user, balance):
     cur = conn.cursor()
@@ -159,12 +193,87 @@ def get_banks(conn):
     res = res.fetchall()
     return res
 
-def get_product(conn):
-    sql = """SELECT id, product_name, producer, energy, impact FROM products;"""
+def get_product_byname(conn, product_name):
+    sql = """SELECT id, start_date, end_date,
+        product_name, amount, producer, produced FROM products WHERE product_name = '{0}'; """.format(product_name)
     cur = conn.cursor()
     res = cur.execute(sql)
     res = res.fetchall()
     return res
+
+def get_user(conn):
+    cur = conn.cursor()
+    res = cur.execute("SELECT id, start_date, end_date, balance, wealth, bank FROM users")
+    res = res.fetchall()
+    return res
+
+def get_user_balance(conn, user):
+    cur = conn.cursor()
+    res = cur.execute("SELECT balance FROM users WHERE id = {0}".format(user))
+    res = res.fetchall()
+    return res[0]
+
+def get_proddetail_byproduct(conn, product_id):
+    cur = conn.cursor()
+    sql = """SELECT products.id, produceable_products.energy, produceable_products.impact, dependency, reservoir
+                FROM products JOIN produceable_products 
+                WHERE products.product_name = produceable_products.product_name AND products.id = {0}""".format(product_id)
+    res = cur.execute(sql)
+    res = res.fetchall()
+    return res
+
+def get_producer_by_productid(conn, product_id):
+    sql = """SELECT producer 
+                FROM products 
+                JOIN produceable_products 
+                ON produceable_products.product_name = products.product_name
+                WHERE products.id = {0} ; """.format(product_id)
+    cur = conn.cursor()
+    res = cur.execute(sql)
+    res = res.fetchall()
+    return res
+
+def get_product(conn):
+    sql = """SELECT id, product_name, producer, produced FROM products;"""
+    cur = conn.cursor()
+    res = cur.execute(sql)
+    res = res.fetchall()
+    return res
+
+def get_energyimpact_by_product(conn, product_id):
+    sql = """SELECT produceable_products.id, produceable_products.energy, produceable_products.impact, produceable_products.dependency, produceable_products.reservoir
+                FROM products 
+                JOIN produceable_products 
+                ON produceable_products.product_name = products.product_name 
+                WHERE products.id = {0} ;""".format(product_id)
+    cur = conn.cursor()
+    res = cur.execute(sql)
+    res = res.fetchall()
+    return res[0]
+
+
+def get_prodname_by_dependency_id(conn, prod_id):
+    sql = """SELECT id, product_name
+                FROM produceable_products 
+                WHERE produceable_products.id = {0} ;""".format(prod_id)
+    cur = conn.cursor()
+    res = cur.execute(sql)
+    res = res.fetchall()
+    return res[0]
+
+def get_product_by_id(conn, id):
+    sql = """SELECT id, product_name, producer, produced FROM products WHERE id = {0} ;""".format(id)
+    cur = conn.cursor()
+    res = cur.execute(sql)
+    res = res.fetchall()
+    return res[0]
+
+def get_product_by_producer(conn, producer):
+    sql = """SELECT id, product_name, producer, produced FROM products WHERE producer = {0} ;""".format(producer)
+    cur = conn.cursor()
+    res = cur.execute(sql)
+    res = res.fetchall()
+    return res[0]
 
 def get_produceable_product(conn):
     sql = """SELECT product_name, energy, impact FROM produceable_products;"""
@@ -173,6 +282,22 @@ def get_produceable_product(conn):
     res = res.fetchall()
     return res
 
+
+def get_tot_amount_per_product(conn, product_name):
+    sql = """SELECT SUM(needs.amount)
+        FROM needs 
+        JOIN products 
+        WHERE products.id = needs.product AND needs.satisfied = 0
+        AND products.product_name = '{0}' AND products.produced = 0
+        GROUP BY products.id""".format(product_name)
+    cur = conn.cursor()
+    res = cur.execute(sql)
+    res = res.fetchall()
+    if res is not None and len(res) >0:
+        return res[0]
+    else:
+        return None
+
 def get_unsatisfied_need_by_product(conn, product_id):
     sql = """SELECT id, user, product, amount, weight FROM needs WHERE product = {0} AND action='BUY' AND satisfied = 0;""".format(product_id[0])
     cur = conn.cursor()
@@ -180,7 +305,7 @@ def get_unsatisfied_need_by_product(conn, product_id):
     res = res.fetchall()
     return res
 
-def insert_need(conn, user, product, product_name, amount, weight, action, satisfied):
+def insert_need(conn, user, product, product_name, amount, weight, action, satisfied=0):
     sql = """INSERT INTO needs (user, product, product_name, start_date, amount, weight, action, satisfied) VALUES ({0}, {1}, '{2}', CURRENT_TIMESTAMP, {3}, {4}, '{5}', {6});""".format(
         user, product, product_name, amount, weight, action, satisfied)
     cur = conn.cursor()
@@ -201,10 +326,10 @@ def insert_activity(conn, amount, user, seller, prod_name, energy, impact, user_
     cur.executescript(sql)
     return cur.lastrowid
 
-def insert_products(conn, prod_name, energy_per_material, impact_per_material, producer):
+def insert_products(conn, prod_name, producer, produced=0):
     cur = conn.cursor()
-    sql = """INSERT INTO products (start_date, product_name, energy, impact, producer) VALUES (CURRENT_TIMESTAMP, '{0}', {1}, {2}, {3} );""".format(
-        prod_name, energy_per_material, impact_per_material, producer)
+    sql = """INSERT INTO products (start_date, product_name, producer, produced) VALUES (CURRENT_TIMESTAMP, '{0}', {1}, {2} );""".format(
+        prod_name, producer, produced)
     cur.executescript(sql)
     return cur.lastrowid
 
@@ -219,8 +344,6 @@ def insert_loan(conn, bank, user, amount, energy, impact ):
     cur = conn.cursor()
     cur.executescript(sql)
     return cur.lastrowid
-
-
 
 def init_connection():
     database = r"newpythonsqlite.db"
